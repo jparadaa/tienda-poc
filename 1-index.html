@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Filtros HB | Tienda POC</title>
+<style>
+  :root{
+    --azul:#1a56db; --azul-osc:#1e3a8a; --gris:#6b7280; --borde:#e5e7eb;
+    --fondo:#f3f4f6; --verde:#047857; --rojo:#b91c1c; --texto:#111827;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--fondo);color:var(--texto);line-height:1.45}
+  header{background:linear-gradient(135deg,var(--azul-osc),var(--azul));color:#fff;
+         padding:1rem 1rem 1.2rem;position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+  header .wrap{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+  header h1{font-size:1.15rem;font-weight:700}
+  header p{font-size:.75rem;opacity:.85;margin-top:.1rem}
+  .carrito-btn{background:#fff;color:var(--azul-osc);border:none;border-radius:999px;
+               padding:.5rem .9rem;font-weight:700;font-size:.85rem;cursor:pointer;white-space:nowrap}
+  main{max-width:1100px;margin:0 auto;padding:1rem 1rem 6.5rem}
+  h2{font-size:1rem;margin:1.4rem 0 .7rem}
+  .rejilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:.7rem}
+  .tarjeta{background:#fff;border:1px solid var(--borde);border-radius:.8rem;
+           padding:.8rem;display:flex;flex-direction:column;gap:.4rem}
+  .cat{display:inline-block;font-size:.65rem;font-weight:700;text-transform:uppercase;
+       letter-spacing:.04em;color:var(--azul);background:#eff6ff;border-radius:999px;
+       padding:.15rem .5rem;width:fit-content}
+  .nombre{font-size:.85rem;font-weight:600;min-height:2.4em}
+  .sku{font-size:.7rem;color:var(--gris)}
+  .fila{display:flex;align-items:center;justify-content:space-between;margin-top:auto}
+  .precio{font-weight:800;font-size:.95rem}
+  .stock{font-size:.7rem;color:var(--gris)}
+  .stock.bajo{color:var(--rojo);font-weight:700}
+  .cant{display:flex;align-items:center;gap:.45rem}
+  .cant button{width:26px;height:26px;border-radius:50%;border:1px solid var(--borde);
+               background:#fff;font-size:1rem;cursor:pointer;line-height:1}
+  .agregar{margin-top:.5rem;background:var(--azul);color:#fff;border:none;border-radius:.55rem;
+           padding:.5rem;font-size:.8rem;font-weight:700;cursor:pointer}
+  .agregar:disabled{background:#d1d5db;cursor:not-allowed}
+  .pedido{background:#fff;border:1px solid var(--borde);border-radius:.8rem;padding:.8rem;margin-bottom:.7rem}
+  .pedido .cab{display:flex;justify-content:space-between;font-size:.8rem;font-weight:700}
+  .pedido .meta{font-size:.72rem;color:var(--gris);margin:.15rem 0 .4rem}
+  .pedido ul{list-style:none;font-size:.78rem}
+  .pedido li{display:flex;justify-content:space-between;padding:.15rem 0;border-top:1px dashed var(--borde)}
+  .pedido .total{display:flex;justify-content:space-between;font-weight:800;font-size:.85rem;
+                 border-top:2px solid var(--borde);margin-top:.3rem;padding-top:.3rem}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:20}
+  .overlay.abierto{display:block}
+  .hoja{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:1rem 1rem 0 0;
+        padding:1rem 1rem 1.4rem;max-height:82vh;overflow-y:auto;z-index:30;
+        transform:translateY(105%);transition:transform .22s ease;max-width:640px;margin:0 auto}
+  .hoja.abierta{transform:translateY(0)}
+  .hoja h3{font-size:1rem;margin-bottom:.7rem}
+  .item{display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+        padding:.5rem 0;border-bottom:1px solid var(--borde);font-size:.85rem}
+  .item .nom{flex:1}
+  .item .cant2{display:flex;align-items:center;gap:.4rem}
+  .item button{width:24px;height:24px;border-radius:50%;border:1px solid var(--borde);
+               background:#fff;cursor:pointer}
+  input[type=text]{width:100%;padding:.6rem .7rem;border:1px solid var(--borde);
+                   border-radius:.55rem;font-size:.9rem;margin:.6rem 0}
+  .confirmar{width:100%;background:var(--verde);color:#fff;border:none;border-radius:.6rem;
+             padding:.75rem;font-size:.95rem;font-weight:800;cursor:pointer;margin-top:.3rem}
+  .confirmar:disabled{background:#d1d5db;cursor:not-allowed}
+  .vacio{font-size:.85rem;color:var(--gris);text-align:center;padding:1.2rem 0}
+  .aviso{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:.7rem;
+         padding:.9rem;font-size:.85rem;margin-top:1rem}
+  .error{background:#fef2f2;border:1px solid #fecaca;color:var(--rojo);border-radius:.7rem;
+         padding:.9rem;font-size:.85rem;margin-top:1rem}
+  .error button{margin-top:.5rem;background:var(--rojo);color:#fff;border:none;
+                border-radius:.5rem;padding:.4rem .9rem;cursor:pointer;font-weight:700}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:1.2rem;background:#065f46;
+         color:#fff;padding:.7rem 1.1rem;border-radius:.6rem;font-size:.85rem;font-weight:600;
+         z-index:40;display:none;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:92vw}
+  .toast.err{background:var(--rojo)}
+  .cargando{color:var(--gris);font-size:.85rem;text-align:center;padding:2rem 0}
+  @media (min-width:720px){
+    header h1{font-size:1.4rem}
+    .rejilla{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1rem}
+    main{padding-bottom:2rem}
+    .hoja{border-radius:1rem;bottom:1.5rem;border:1px solid var(--borde)}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div>
+      <h1>Filtros HB</h1>
+      <p>Tienda de demostración (POC)</p>
+    </div>
+    <button class="carrito-btn" id="btnCarrito" onclick="alternarHoja(true)">Carrito (0)</button>
+  </div>
+</header>
+
+<main>
+  <div id="avisoToken" class="aviso" style="display:none">
+    Esta demostración necesita un token en la URL. Pídele a quien te compartió la página
+    que te mande el enlace completo (incluye <code>?token=…</code>).
+  </div>
+  <div id="errorApi" class="error" style="display:none">
+    <span id="errorTxt">No se pudo conectar con la tienda.</span><br>
+    <button onclick="iniciar()">Reintentar</button>
+  </div>
+
+  <h2>Catálogo</h2>
+  <div id="catalogo" class="rejilla"><div class="cargando">Cargando productos…</div></div>
+
+  <h2>Pedidos recientes</h2>
+  <div id="pedidos"><div class="cargando">Cargando pedidos…</div></div>
+</main>
+
+<div class="overlay" id="overlay" onclick="alternarHoja(false)"></div>
+<div class="hoja" id="hoja">
+  <h3>Tu pedido</h3>
+  <div id="items"></div>
+  <input type="text" id="cliente" maxlength="60" placeholder="Nombre del cliente (opcional)">
+  <button class="confirmar" id="btnConfirmar" onclick="confirmarPedido()">Confirmar pedido</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://hbtest.ddns.net';
+let token = '';
+let catalogo = [];
+let carrito = {};   // id -> cantidad
+
+(function leerToken(){
+  const q = new URLSearchParams(location.search);
+  token = q.get('token') || sessionStorage.getItem('poc_token') || '';
+  if (q.get('token')) {
+    sessionStorage.setItem('poc_token', token);
+    history.replaceState(null, '', location.pathname);   // limpia el token de la barra
+  }
+})();
+
+async function api(ruta, opciones){
+  const resp = await fetch(API + ruta, Object.assign({
+    headers: {'X-POC-Token': token, 'Content-Type': 'application/json'}
+  }, opciones || {}));
+  const datos = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const e = new Error(datos.error || ('HTTP ' + resp.status));
+    e.status = resp.status; e.datos = datos;
+    throw e;
+  }
+  return datos;
+}
+
+function dinero(n){ return '$' + Number(n).toFixed(2); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function iniciar(){
+  document.getElementById('errorApi').style.display = 'none';
+  if (!token) {
+    document.getElementById('avisoToken').style.display = 'block';
+    document.getElementById('catalogo').innerHTML = '';
+    document.getElementById('pedidos').innerHTML = '';
+    return;
+  }
+  try {
+    const prods = await api('/api/productos');
+    catalogo = prods.data;
+    pintarCatalogo();
+    await cargarPedidos();
+  } catch (e) {
+    const caja = document.getElementById('errorApi');
+    document.getElementById('errorTxt').textContent =
+      (e.status === 401) ? 'El token no es válido o faltó en la URL.' : 'No se pudo conectar con la tienda.';
+    caja.style.display = 'block';
+    document.getElementById('catalogo').innerHTML = '';
+    document.getElementById('pedidos').innerHTML = '';
+  }
+}
+
+function pintarCatalogo(){
+  const cont = document.getElementById('catalogo');
+  if (!catalogo.length) { cont.innerHTML = '<div class="vacio">Sin productos.</div>'; return; }
+  cont.innerHTML = catalogo.map(p => {
+    const enCarrito = carrito[p.id] || 0;
+    const disp = p.stock - enCarrito;
+    return `<div class="tarjeta">
+      <span class="cat">${esc(p.categoria)}</span>
+      <div class="nombre">${esc(p.nombre)}</div>
+      <div class="sku">${esc(p.sku)}</div>
+      <div class="fila">
+        <span class="precio">${dinero(p.precio)}</span>
+        <span class="stock ${p.stock <= 5 ? 'bajo' : ''}">${p.stock > 0 ? p.stock + ' disp.' : 'agotado'}</span>
+      </div>
+      <div class="cant">
+        <button onclick="cambiar(${p.id},-1)" ${enCarrito === 0 ? 'disabled' : ''}>−</button>
+        <span>${enCarrito}</span>
+        <button onclick="cambiar(${p.id},1)" ${disp <= 0 ? 'disabled' : ''}>+</button>
+      </div>
+      <button class="agregar" onclick="cambiar(${p.id},1)" ${disp <= 0 ? 'disabled' : ''}>
+        ${p.stock === 0 ? 'Agotado' : 'Agregar'}
+      </button>
+    </div>`;
+  }).join('');
+  pintarCarrito();
+}
+
+function cambiar(id, d){
+  const p = catalogo.find(x => x.id === id);
+  if (!p) return;
+  const actual = carrito[id] || 0;
+  const nuevo = Math.min(Math.max(actual + d, 0), p.stock);
+  if (nuevo === 0) delete carrito[id]; else carrito[id] = nuevo;
+  pintarCatalogo();
+}
+
+function pintarCarrito(){
+  const ids = Object.keys(carrito);
+  let total = 0, piezas = 0;
+  ids.forEach(id => {
+    const p = catalogo.find(x => x.id == id);
+    if (p) { total += p.precio * carrito[id]; piezas += carrito[id]; }
+  });
+  document.getElementById('btnCarrito').textContent = `Carrito (${piezas}) · ${dinero(total)}`;
+  const cont = document.getElementById('items');
+  if (!ids.length) {
+    cont.innerHTML = '<div class="vacio">Tu carrito está vacío.</div>';
+  } else {
+    cont.innerHTML = ids.map(id => {
+      const p = catalogo.find(x => x.id == id);
+      if (!p) return '';
+      return `<div class="item">
+        <span class="nom">${esc(p.nombre)}<br><small>${dinero(p.precio)} c/u</small></span>
+        <span class="cant2">
+          <button onclick="cambiar(${p.id},-1)">−</button>${carrito[id]}<button onclick="cambiar(${p.id},1)">+</button>
+        </span>
+        <b>${dinero(p.precio * carrito[id])}</b>
+      </div>`;
+    }).join('') + `<div class="item"><b>Total</b><b>${dinero(total)}</b></div>`;
+  }
+  document.getElementById('btnConfirmar').disabled = !ids.length;
+}
+
+function alternarHoja(abrir){
+  document.getElementById('hoja').classList.toggle('abierta', abrir);
+  document.getElementById('overlay').classList.toggle('abierto', abrir);
+}
+
+async function confirmarPedido(){
+  const ids = Object.keys(carrito);
+  if (!ids.length) return;
+  const btn = document.getElementById('btnConfirmar');
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+  try {
+    const cliente = document.getElementById('cliente').value.trim();
+    const cuerpo = {
+      cliente: cliente || undefined,
+      items: ids.map(id => ({producto_id: Number(id), cantidad: carrito[id]}))
+    };
+    const r = await api('/api/pedidos', {method: 'POST', body: JSON.stringify(cuerpo)});
+    carrito = {};
+    document.getElementById('cliente').value = '';
+    alternarHoja(false);
+    avisar(`Pedido #${r.data.id} registrado · ${dinero(r.data.total)}`);
+    await iniciar();   // refresca stock y pedidos
+  } catch (e) {
+    if (e.status === 409) avisar('Stock insuficiente para algún producto.', true);
+    else if (e.status === 401) avisar('Token inválido.', true);
+    else avisar('No se pudo registrar el pedido.', true);
+    await iniciar();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirmar pedido';
+  }
+}
+
+async function cargarPedidos(){
+  const r = await api('/api/pedidos');
+  const cont = document.getElementById('pedidos');
+  const lista = (r.data || []).slice(0, 10);
+  if (!lista.length) { cont.innerHTML = '<div class="vacio">Aún no hay pedidos.</div>'; return; }
+  cont.innerHTML = lista.map(p => `<div class="pedido">
+    <div class="cab"><span>Pedido #${p.id}</span><span>${dinero(p.total)}</span></div>
+    <div class="meta">${esc(p.creado)} · ${esc(p.cliente)}</div>
+    <ul>${(p.items || []).map(i =>
+      `<li><span>${i.cantidad} × ${esc(i.nombre)}</span><span>${dinero(i.precio * i.cantidad)}</span></li>`
+    ).join('')}</ul>
+  </div>`).join('');
+}
+
+let toastTimer = null;
+function avisar(msg, esError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (esError ? ' err' : '');
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+}
+
+iniciar();
+</script>
+</body>
+</html>
