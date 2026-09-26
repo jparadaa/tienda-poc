@@ -126,6 +126,7 @@ const API = 'https://hbtest.ddns.net:8443';
 let token = '';
 let catalogo = [];
 let carrito = {};   // id -> cantidad
+let idemKey = null;  // llave de idempotencia del intento de compra actual
 
 (function leerToken(){
   const q = new URLSearchParams(location.search);
@@ -252,18 +253,27 @@ async function confirmarPedido(){
   btn.textContent = 'Enviando…';
   try {
     const cliente = document.getElementById('cliente').value.trim();
-    const cuerpo = {
+    if (!idemKey) idemKey = (crypto.randomUUID ? crypto.randomUUID() : 'k-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+    const items = ids.map(id => ({producto_id: Number(id), cantidad: carrito[id]}));
+    // 1) cotiza (congela precio, vigencia 15 min); 2) crea el pedido desde la cotizacion
+    const cot = await api('/api/cotizaciones', {method: 'POST', body: JSON.stringify({
+      cliente: cliente || undefined, items: items
+    })});
+    const r = await api('/api/pedidos', {method: 'POST', body: JSON.stringify({
+      folio: cot.data.folio,
       cliente: cliente || undefined,
-      items: ids.map(id => ({producto_id: Number(id), cantidad: carrito[id]}))
-    };
-    const r = await api('/api/pedidos', {method: 'POST', body: JSON.stringify(cuerpo)});
+      idempotency_key: idemKey
+    })});
     carrito = {};
+    idemKey = null;
     document.getElementById('cliente').value = '';
     alternarHoja(false);
-    avisar(`Pedido #${r.data.id} registrado · ${dinero(r.data.total)}`);
+    avisar(`Pedido #${r.data.id} registrado (${r.data.folio}) · ${dinero(r.data.total)}`);
     await iniciar();   // refresca stock y pedidos
   } catch (e) {
+    // idemKey se conserva: un reintento NO duplica el pedido (el servidor devuelve duplicado)
     if (e.status === 409) avisar('Stock insuficiente para algún producto.', true);
+    else if (e.status === 410) avisar('La cotización venció, vuelve a intentar.', true);
     else if (e.status === 401) avisar('Token inválido.', true);
     else avisar('No se pudo registrar el pedido.', true);
     await iniciar();
