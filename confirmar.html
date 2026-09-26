@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirmar pedido · Filtros HB</title>
+<style>
+  :root{--azul:#1a56db;--azul-osc:#1e3a8a;--gris:#f3f4f6;--borde:#e5e7eb;--texto:#111827;--tenue:#6b7280;--ok:#15803d;--err:#b91c1c;--warn:#b45309}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--gris);color:var(--texto)}
+  header{background:linear-gradient(135deg,var(--azul-osc),var(--azul));color:#fff;padding:1rem 1rem 1.2rem;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+  header .wrap{max-width:640px;margin:0 auto}
+  header h1{font-size:1.15rem;font-weight:700}
+  header p{font-size:.75rem;opacity:.85;margin-top:.1rem}
+  main{max-width:640px;margin:0 auto;padding:1rem 1rem 3rem}
+  .tarjeta{background:#fff;border:1px solid var(--borde);border-radius:.8rem;padding:1rem;margin-bottom:1rem}
+  .folio{font-size:1.05rem;font-weight:700}
+  .estado{display:inline-block;font-size:.72rem;font-weight:700;padding:.15rem .5rem;border-radius:1rem;margin-left:.4rem;vertical-align:middle}
+  .estado.vigente{background:#dcfce7;color:var(--ok)}
+  .estado.usada{background:#fee2e2;color:var(--err)}
+  .estado.vencida{background:#fef3c7;color:var(--warn)}
+  .vence{font-size:.78rem;color:var(--tenue);margin-top:.2rem}
+  table{width:100%;border-collapse:collapse;margin-top:.8rem;font-size:.9rem}
+  th{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--tenue);text-align:left;padding:.3rem .2rem;border-bottom:1px solid var(--borde)}
+  td{padding:.45rem .2rem;border-bottom:1px solid var(--borde);vertical-align:top}
+  td.num,th.num{text-align:right;white-space:nowrap}
+  .sku{font-size:.72rem;color:var(--tenue)}
+  .total{display:flex;justify-content:space-between;font-weight:700;font-size:1.05rem;padding:.6rem .2rem 0}
+  label{display:block;font-size:.8rem;color:var(--tenue);margin:.9rem 0 .25rem}
+  input[type=text]{width:100%;padding:.55rem .7rem;border:1px solid var(--borde);border-radius:.5rem;font-size:.95rem}
+  .confirmar{width:100%;margin-top:1rem;padding:.8rem;border:0;border-radius:.6rem;background:var(--azul);color:#fff;font-size:1rem;font-weight:700;cursor:pointer}
+  .confirmar:disabled{background:#9ca3af;cursor:default}
+  .aviso{margin-top:.8rem;padding:.6rem .8rem;border-radius:.5rem;font-size:.85rem;display:none}
+  .aviso.err{display:block;background:#fee2e2;color:var(--err)}
+  .aviso.ok{display:block;background:#dcfce7;color:var(--ok)}
+  .aviso.warn{display:block;background:#fef3c7;color:var(--warn)}
+  .vacio{text-align:center;color:var(--tenue);padding:2.5rem 1rem}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Filtros HB · Confirmar pedido</h1>
+  <p>Verifica la cotización y autoriza</p>
+</div></header>
+<main>
+  <div class="tarjeta" id="ficha"><div class="vacio">Cargando cotización…</div></div>
+  <div class="aviso" id="aviso"></div>
+</main>
+
+<script>
+const API = 'https://hbtest.ddns.net:8443';
+let token = '', folio = '', cot = null;
+// La llave se genera UNA vez al abrir la página: reintentos y dobles clics no duplican el pedido
+const idemKey = (crypto.randomUUID ? crypto.randomUUID() : 'k-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+
+(function leerParams(){
+  const q = new URLSearchParams(location.search);
+  folio = q.get('folio') || '';
+  token = q.get('token') || sessionStorage.getItem('poc_token') || '';
+  if (q.get('token')) {
+    sessionStorage.setItem('poc_token', token);
+    const limpia = location.pathname + '?folio=' + encodeURIComponent(folio);
+    history.replaceState(null, '', limpia);   // limpia el token de la barra
+  }
+})();
+
+async function api(ruta, opciones){
+  const resp = await fetch(API + ruta, Object.assign({
+    headers: {'X-POC-Token': token, 'Content-Type': 'application/json'}
+  }, opciones || {}));
+  const datos = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const e = new Error(datos.error || ('HTTP ' + resp.status));
+    e.status = resp.status; e.datos = datos;
+    throw e;
+  }
+  return datos;
+}
+
+function dinero(n){ return '$' + Number(n).toFixed(2); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function avisar(txt, tipo){
+  const a = document.getElementById('aviso');
+  a.textContent = txt;
+  a.className = 'aviso ' + (tipo || 'err');
+}
+
+function pintar(){
+  const cont = document.getElementById('ficha');
+  if (!cot) { cont.innerHTML = '<div class="vacio">Cargando cotización…</div>'; return; }
+  const puede = cot.estado === 'vigente';
+  const filas = cot.items.map(i => `<tr>
+    <td><div>${esc(i.nombre)}</div><div class="sku">${esc(i.sku)}</div></td>
+    <td class="num">${i.cantidad}</td>
+    <td class="num">${dinero(i.precio_unitario)}</td>
+    <td class="num">${dinero(i.subtotal)}</td>
+    <td class="num">${i.stock_vigente}</td>
+  </tr>`).join('');
+  cont.innerHTML = `
+    <div><span class="folio">${esc(cot.folio)}</span><span class="estado ${cot.estado}">${cot.estado}</span></div>
+    <div class="vence">Generada ${esc(cot.creado)} · vence ${esc(cot.vence_en)}</div>
+    <table>
+      <thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Subtotal</th><th class="num">Stock</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div class="total"><span>Total</span><span>${dinero(cot.total)}</span></div>
+    <label for="cliente">Tu nombre (para el pedido)</label>
+    <input type="text" id="cliente" maxlength="60" value="${esc(cot.cliente === 'mostrador' ? '' : cot.cliente)}" placeholder="¿Quién recoge?">
+    <button class="confirmar" id="btnConfirmar" onclick="confirmar()" ${puede ? '' : 'disabled'}>Confirmar pedido</button>`;
+  if (cot.estado === 'usada') avisar('Esta cotización ya fue utilizada en un pedido.', 'warn');
+  if (cot.estado === 'vencida') avisar('Esta cotización venció. Pide al agente una nueva.', 'warn');
+}
+
+async function cargar(){
+  if (!token) { document.getElementById('ficha').innerHTML = '<div class="vacio">Falta el token. Pide el enlace completo a quien te lo compartió.</div>'; return; }
+  if (!folio) { document.getElementById('ficha').innerHTML = '<div class="vacio">Falta el folio en el enlace (?folio=COT-000001).</div>'; return; }
+  try {
+    const r = await api('/api/cotizaciones?folio=' + encodeURIComponent(folio));
+    cot = r.data;
+    pintar();
+  } catch (e) {
+    const cont = document.getElementById('ficha');
+    if (e.status === 404) cont.innerHTML = '<div class="vacio">Cotización no encontrada. Revisa el folio del enlace.</div>';
+    else if (e.status === 401) cont.innerHTML = '<div class="vacio">El token no es válido o faltó en la URL.</div>';
+    else cont.innerHTML = '<div class="vacio">No se pudo conectar con la tienda.</div>';
+  }
+}
+
+async function confirmar(){
+  const btn = document.getElementById('btnConfirmar');
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+  try {
+    const cliente = document.getElementById('cliente').value.trim();
+    const r = await api('/api/pedidos', {method: 'POST', body: JSON.stringify({
+      folio: folio,
+      cliente: cliente || undefined,
+      idempotency_key: idemKey
+    })});
+    const d = r.data;
+    document.getElementById('ficha').innerHTML = `<div class="vacio">
+      <div style="font-size:2rem">✅</div>
+      <p style="font-weight:700;margin:.5rem 0">Pedido #${d.id} registrado · ${dinero(d.total)}</p>
+      <p style="font-size:.85rem">${d.duplicado ? 'Este pedido ya había sido registrado (reintento seguro).' : 'Stock actualizado. Gracias.'}</p>
+    </div>`;
+    avisar('Pedido confirmado con folio ' + d.folio + '.', 'ok');
+  } catch (e) {
+    if (e.status === 409 && e.datos && e.datos.error === 'cotizacion_usada') avisar('Esta cotización ya fue utilizada.', 'warn');
+    else if (e.status === 409) avisar('Stock insuficiente para algún producto. Pide una cotización nueva.', 'err');
+    else if (e.status === 410) avisar('La cotización venció. Pide al agente una nueva.', 'warn');
+    else if (e.status === 401) avisar('Token inválido.', 'err');
+    else avisar('No se pudo registrar el pedido.', 'err');
+    btn.disabled = false;
+    btn.textContent = 'Confirmar pedido';
+  }
+}
+
+cargar();
+</script>
+</body>
+</html>
